@@ -45,7 +45,7 @@ class DownLoader():
  
 class PlaylistDownloader():
     def __init__(self, yt_url):
-        r = requests.get("https://www.youtube.com/watch?v=md5UCR7mcIY&list=PLbMVogVj5nJSxFihV-ec4A3z_FOGPRCo-&index=1")
+        r = requests.get(yt_url)
         webpage = html.fromstring(r.content) 
         page_urls = webpage.xpath('//a/@href')
         self.base_url = "https://www.youtube.com"
