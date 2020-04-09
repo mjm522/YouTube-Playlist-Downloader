@@ -2,13 +2,22 @@ import os
 import sys
 import math
 import requests
+import ffmpeg
 from lxml import html
 from pytube import YouTube
+
+temp_folder = './temp'
 
 def file_path():
     home = os.path.expanduser('~')
     download_path = os.path.join(home, 'Downloads')
     return download_path
+
+def create_temp_folder():
+    if not os.path.exists(temp_folder):
+        os.makedirs(temp_folder)
+
+create_temp_folder()
 
 class DownLoader():
     def __init__(self, yt_url):
@@ -25,23 +34,47 @@ class DownLoader():
             self.old_percent = percent
 
     def get_max_resolution_stream(self, streams):
-        available_resolutions = [int(stream.resolution[:-1]) for stream in streams if stream.resolution is not None]
-        return streams[available_resolutions.index(max(available_resolutions))]
-     
+        available_video_resolutions = [int(stream.resolution[:-1]) for stream in streams if stream.resolution is not None]
+        max_resolution = max(available_video_resolutions)
+        v_stream = streams[available_video_resolutions.index(max_resolution)]
+        a_stream = None
+        if not v_stream.is_progressive:
+            v_stream = streams.filter(res=str(max_resolution)+'p', mime_type='video/webm').first()
+            available_audio_resolutions = [int(stream.abr[:-4]) for stream in streams if (stream.abr is not None) and (stream.type=='audio')]
+            max_audio_rate = max(available_audio_resolutions)
+            a_stream = streams.filter(abr=str(max_audio_rate)+'kbps', mime_type='audio/webm').first()
+        return v_stream, a_stream
+
     def download(self, download_path):
         print ("Accessing YouTube URL...") 
         try:
             video = YouTube(self.url, on_progress_callback=self.progress_Check)
         except:
             print("ERROR. Check your:\n  -connection\n  -url is a YouTube url\n\nTry again.")
-            redo = self.start()
+            self.download(download_path)
 
-        video_type = self.get_max_resolution_stream(video.streams)
         title = video.title
-        self.filesize = video_type.filesize
+
+        # for i, stream in enumerate(video.streams):
+        #     print(i, "\t", stream)
+        
+        video_stream, audio_stream = self.get_max_resolution_stream(video.streams)
+
+        self.filesize = video_stream.filesize
+
         print ("Fetching: {0}... filesize={1} MB".format(title, math.ceil(self.filesize*1e-6)))
-        video_type.download(download_path)
- 
+
+        if audio_stream is None:
+            video_stream.download(download_path)
+        else:
+            video_stream.download(temp_folder, 'video')
+            audio_stream.download(temp_folder, 'audio')
+            input_video = ffmpeg.input(temp_folder+'/video.webm')
+            input_audio = ffmpeg.input(temp_folder+'/audio.webm')
+            save_name = download_path +'/'+title+'.mp4'
+            ffmpeg.concat(input_video, input_audio, v=1, a=1).output(save_name).run()
+            os.remove(temp_folder+'/video.webm')
+            os.remove(temp_folder+'/audio.webm')
  
 class PlaylistDownloader():
     def __init__(self, yt_url):
