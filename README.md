@@ -1,4 +1,4 @@
-# YouTube-Playlist-Downloader
+# YouTube-Video/Playlist-Downloader
 
 Downloads the maximum resolution video. 
 
